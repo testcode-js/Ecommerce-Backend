@@ -15,6 +15,10 @@ const userRoutes = require('./routes/userRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const couponRoutes = require('./routes/couponRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const blogRoutes = require('./routes/blogRoutes');
+const dealRoutes = require('./routes/dealRoutes');
+const cloudinaryRoutes = require('./routes/cloudinaryRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 // Connect to MongoDB
 connectDB().catch((error) => {
@@ -52,6 +56,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/blogs', blogRoutes);
+app.use('/api/deals', dealRoutes);
+app.use('/api/cloudinary', cloudinaryRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
