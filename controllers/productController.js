@@ -264,9 +264,6 @@ const createProduct = async (req, res) => {
     const normalizedImages = normalizeImagesInput(bodyImages);
 
 
-    const { name, price, originalPrice, description, category, brand, stock, isFeatured } = req.body;
-
-
 
     const product = new Product({
 
@@ -289,7 +286,6 @@ const createProduct = async (req, res) => {
       image: req.file ? req.file.filename : extractImageUrl(bodyImage),
 
       images: normalizedImages === undefined ? [] : normalizedImages,
-      image: req.file ? req.file.filename : '',
 
     });
 
@@ -336,9 +332,6 @@ const updateProduct = async (req, res) => {
 
 
     const { name, price, originalPrice, description, category, brand, stock, isFeatured, isActive, image: bodyImage, images: bodyImages } = req.body;
-
-
-    const { name, price, originalPrice, description, category, brand, stock, isFeatured, isActive } = req.body;
 
 
 
