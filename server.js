@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
+const cors = require('./middleware/cors');
 const path = require('path');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
@@ -32,10 +32,7 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-app.use(cors({
-  origin: process.env.CLIENT_URL,
-  credentials: true,
-}));
+app.use(cors);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
