@@ -1,5 +1,44 @@
 const Product = require('../models/Product');
 
+const extractImageUrl = (imageField) => {
+  if (!imageField) return '';
+  if (typeof imageField === 'string') return imageField.trim();
+  if (typeof imageField === 'object') {
+    if (imageField.secure_url) return imageField.secure_url;
+    if (imageField.url) return imageField.url;
+    if (imageField.data) {
+      if (imageField.data.secure_url) return imageField.data.secure_url;
+      if (imageField.data.url) return imageField.data.url;
+    }
+  }
+  return '';
+};
+
+const normalizeImagesInput = (imagesField) => {
+  if (imagesField === undefined) return undefined;
+  if (imagesField === null) return [];
+  if (Array.isArray(imagesField)) {
+    return imagesField.map(extractImageUrl).filter(Boolean);
+  }
+  if (typeof imagesField === 'string') {
+    const trimmed = imagesField.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map(extractImageUrl).filter(Boolean);
+      }
+      return [extractImageUrl(parsed)].filter(Boolean);
+    } catch (err) {
+      return trimmed
+        .split(',')
+        .map((img) => extractImageUrl(img))
+        .filter(Boolean);
+    }
+  }
+  return [];
+};
+
 
 
 // @desc    Get all products with search, filter, sort, pagination
@@ -218,6 +257,13 @@ const createProduct = async (req, res) => {
 
   try {
 
+    const { name, price, originalPrice, description, category, brand, stock, isFeatured, image: bodyImage, images: bodyImages } = req.body;
+
+
+
+    const normalizedImages = normalizeImagesInput(bodyImages);
+
+
     const { name, price, originalPrice, description, category, brand, stock, isFeatured } = req.body;
 
 
@@ -240,6 +286,9 @@ const createProduct = async (req, res) => {
 
       isFeatured: isFeatured || false,
 
+      image: req.file ? req.file.filename : extractImageUrl(bodyImage),
+
+      images: normalizedImages === undefined ? [] : normalizedImages,
       image: req.file ? req.file.filename : '',
 
     });
@@ -286,6 +335,9 @@ const updateProduct = async (req, res) => {
 
 
 
+    const { name, price, originalPrice, description, category, brand, stock, isFeatured, isActive, image: bodyImage, images: bodyImages } = req.body;
+
+
     const { name, price, originalPrice, description, category, brand, stock, isFeatured, isActive } = req.body;
 
 
@@ -313,6 +365,22 @@ const updateProduct = async (req, res) => {
     if (req.file) {
 
       product.image = req.file.filename;
+
+    } else if (bodyImage !== undefined) {
+
+      product.image = extractImageUrl(bodyImage);
+
+    }
+
+
+
+    const normalizedImages = normalizeImagesInput(bodyImages);
+
+
+
+    if (normalizedImages !== undefined) {
+
+      product.images = normalizedImages;
 
     }
 

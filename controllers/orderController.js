@@ -17,11 +17,14 @@ const createOrder = async (req, res) => {
       totalPrice,
       couponCode,
       discountAmount,
+      paymentResult,
     } = req.body;
 
     if (!orderItems || orderItems.length === 0) {
       return res.status(400).json({ message: 'No order items' });
     }
+
+    const isPaid = paymentResult?.status === 'succeeded';
 
     const order = await Order.create({
       user: req.user._id,
@@ -34,6 +37,10 @@ const createOrder = async (req, res) => {
       totalPrice,
       couponCode: couponCode || '',
       discountAmount: discountAmount || 0,
+      paymentResult: paymentResult || undefined,
+      isPaid,
+      paidAt: isPaid ? Date.now() : undefined,
+      status: paymentMethod === 'COD' ? 'Pending' : isPaid ? 'Processing' : 'Pending',
     });
 
     // Update product stock and sold count
