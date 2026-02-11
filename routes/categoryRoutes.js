@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/user');
 const admin = require('../middleware/admin');
-const upload = require('../middleware/upload');
+const { upload } = require('../middleware/upload');
 const {
   getCategories,
   getCategoryById,
