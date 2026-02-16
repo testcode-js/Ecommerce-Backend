@@ -12,6 +12,11 @@ const {
   markOrderPaid,
   getAdminStats,
 } = require('../controllers/orderController');
+const { generateInvoice } = require('../controllers/invoiceController');
+
+// Invoice download routes (must come BEFORE dynamic :id routes)
+router.get('/:id/invoice', auth, generateInvoice);
+router.get('/invoice/:id', auth, generateInvoice);
 
 // Admin routes (must come BEFORE dynamic :id routes)
 router.get('/admin/stats', auth, admin, getAdminStats);
