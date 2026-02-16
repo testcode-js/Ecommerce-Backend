@@ -1,6 +1,15 @@
 const PDFDocument = require('pdfkit');
 const Order = require('../models/Order');
 
+// Helper to format currency
+const formatCurrency = (amount) => {
+   return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2
+   }).format(amount);
+};
+
 // @desc    Generate and download invoice PDF
 // @route   GET /api/orders/:id/invoice
 // @access  Private/Admin
@@ -14,7 +23,7 @@ const generateInvoice = async (req, res) => {
          return res.status(404).json({ message: 'Order not found' });
       }
 
-      // Check if user is authorized (is the owner or an admin)
+      // Check authorization
       const isOwner = order.user && order.user._id.toString() === req.user._id.toString();
       const isAdmin = req.user.role === 'admin';
 
@@ -25,167 +34,165 @@ const generateInvoice = async (req, res) => {
       // Create PDF document
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
-      // Set response headers for PDF download
+      // Set headers
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="Invoice_${order._id.toString().slice(-8).toUpperCase()}.pdf"`);
+      res.setHeader('Content-Disposition', `inline; filename="Invoice_${order._id.toString().slice(-8).toUpperCase()}.pdf"`);
 
-      // Pipe PDF to response
       doc.pipe(res);
 
-      // --- Header ---
-      doc.fillColor('#000000')
-         .fontSize(20)
+      // --- COLORS & FONTS ---
+      const primaryColor = '#2c3e50';
+      const secondaryColor = '#95a5a6';
+      const accentColor = '#3498db';
+      const tableHeaderBg = '#f8f9fa';
+
+      // --- HEADER ---
+      doc.fillColor(primaryColor)
+         .fontSize(24)
          .font('Helvetica-Bold')
-         .text('EASY SHOP', 50, 45);
+         .text('INVOICE', 50, 50, { align: 'right' });
 
       doc.fontSize(10)
          .font('Helvetica')
-         .text('Tax Invoice/Bill of Supply/Cash Memo', 50, 70)
-         .text('(Original for Recipient)', 50, 82);
+         .fillColor(secondaryColor)
+         .text(`Invoice #: INV-${order._id.toString().slice(-8).toUpperCase()}`, 50, 80, { align: 'right' })
+         .text(`Date: ${new Date().toLocaleDateString('en-IN')}`, 50, 95, { align: 'right' });
 
-      // --- Invoice Metadata ---
-      doc.fontSize(10)
+      // Company Info (Left side)
+      doc.fillColor(primaryColor)
+         .fontSize(16)
          .font('Helvetica-Bold')
-         .text('Invoice Number:', 350, 50)
+         .text('EASY SHOP', 50, 50)
+         .fontSize(10)
          .font('Helvetica')
-         .text(`INV-${order._id.toString().slice(-8).toUpperCase()}`, 450, 50)
+         .text('123 Commerce Street,', 50, 75)
+         .text('Bandra Kurla Complex, Mumbai', 50, 90)
+         .text('Maharashtra, India - 400051', 50, 105)
+         .text('GSTIN: 27AAAPL1234C1ZV', 50, 120);
 
-         .font('Helvetica-Bold')
-         .text('Order ID:', 350, 65)
-         .font('Helvetica')
-         .text(order._id.toString(), 450, 65)
+      doc.moveDown();
+      doc.strokeColor('#aaaaaa').lineWidth(1).moveTo(50, 140).lineTo(550, 140).stroke();
 
-         .font('Helvetica-Bold')
-         .text('Order Date:', 350, 80)
-         .font('Helvetica')
-         .text(new Date(order.createdAt).toLocaleDateString(), 450, 80)
-
-         .font('Helvetica-Bold')
-         .text('Invoice Date:', 350, 95)
-         .font('Helvetica')
-         .text(new Date().toLocaleDateString(), 450, 95);
-
-      doc.moveTo(50, 115).lineTo(550, 115).stroke('#CCCCCC');
-
-      // --- Billing and Shipping Addresses ---
-      let yAddress = 130;
+      // --- BILL TO / SHIP TO ---
+      const yAddress = 160;
 
       // Bill To
-      doc.fontSize(11)
-         .font('Helvetica-Bold')
-         .text('Sold By:', 50, yAddress);
-
-      doc.fontSize(10)
-         .font('Helvetica')
-         .text('Easy Shop E-commerce Private Limited', 50, yAddress + 15)
-         .text('123 Commerce Street, Bandra Kurla Complex', 50, yAddress + 27)
-         .text('Mumbai, Maharashtra, 400051, IN', 50, yAddress + 39)
-         .text('PAN: AAAPL1234C | GST: 27AAAPL1234C1ZV', 50, yAddress + 51);
+      doc.fontSize(10).font('Helvetica-Bold').fillColor(primaryColor).text('BILL TO:', 50, yAddress);
+      const user = order.user || {};
+      doc.font('Helvetica').fillColor('#000000')
+         .text(user.name || 'Guest User', 50, yAddress + 15)
+         .text(user.email || '', 50, yAddress + 30);
 
       // Ship To
-      doc.fontSize(11)
-         .font('Helvetica-Bold')
-         .text('Billing Address:', 350, yAddress);
+      doc.fontSize(10).font('Helvetica-Bold').fillColor(primaryColor).text('SHIP TO:', 300, yAddress);
 
       const addr = order.shippingAddress || {};
-      doc.fontSize(10)
-         .font('Helvetica')
-         .text(addr.fullName || order.user?.name || 'Customer Name', 350, yAddress + 15)
-         .text(addr.address || '', 350, yAddress + 27, { width: 200 })
-         .text(`${addr.city || ''}, ${addr.state || ''} ${addr.postalCode || ''}`, 350, doc.y + 2)
-         .text(addr.country || 'India', 350, doc.y + 2)
-         .text(`Phone: ${addr.phone || 'N/A'}`, 350, doc.y + 2);
+      const shipToX = 300;
+      let currentY = yAddress + 15;
 
-      doc.moveTo(50, 220).lineTo(550, 220).stroke('#CCCCCC');
+      doc.font('Helvetica').fillColor('#000000');
+      doc.text(addr.fullName || 'N/A', shipToX, currentY);
+      currentY += 15;
+      doc.text(addr.address || '', shipToX, currentY, { width: 250 });
+      // Calculate height of address (could be multiple lines)
+      const addressHeight = doc.heightOfString(addr.address || '', { width: 250 });
+      currentY += addressHeight;
+      doc.text(`${addr.city || ''}, ${addr.state || ''} - ${addr.postalCode || ''}`, shipToX, currentY);
+      currentY += 15;
+      doc.text(`Phone: ${addr.phone || 'N/A'}`, shipToX, currentY);
 
-      // --- Order Items Table ---
-      let yTable = 240;
-
-      // Table Header
-      doc.rect(50, yTable, 500, 20).fill('#F3F3F3');
-      doc.fillColor('#000000')
-         .fontSize(9)
-         .font('Helvetica-Bold')
-         .text('SI No.', 55, yTable + 6)
-         .text('Description', 100, yTable + 6)
-         .text('Unit Price', 300, yTable + 6, { width: 60, align: 'right' })
-         .text('Qty', 370, yTable + 6, { width: 30, align: 'right' })
-         .text('Net Amount', 410, yTable + 6, { width: 60, align: 'right' })
-         .text('Tax', 480, yTable + 6, { width: 20, align: 'right' })
-         .text('Total', 505, yTable + 6, { width: 40, align: 'right' });
-
-      yTable += 25;
-
-      const items = order.orderItems || [];
-      items.forEach((item, index) => {
-         const netAmount = (item.price * item.quantity);
-         // Mock tax (18%)
-         const taxRate = 0.18;
-         const taxAmount = netAmount * taxRate;
-         const totalItem = netAmount + taxAmount;
-
-         doc.fontSize(9)
-            .font('Helvetica')
-            .text((index + 1).toString(), 55, yTable)
-            .text(item.name || 'Product', 100, yTable, { width: 180 })
-            .text(`₹${item.price.toFixed(2)}`, 300, yTable, { width: 60, align: 'right' })
-            .text(item.quantity.toString(), 370, yTable, { width: 30, align: 'right' })
-            .text(`₹${netAmount.toFixed(2)}`, 410, yTable, { width: 60, align: 'right' })
-            .text(`₹${(taxAmount).toFixed(2)}`, 480, yTable, { width: 20, align: 'right' })
-            .text(`₹${(netAmount + taxAmount).toFixed(2)}`, 505, yTable, { width: 40, align: 'right' });
-
-         yTable = doc.y + 10;
-      });
-
-      doc.moveTo(50, yTable).lineTo(550, yTable).stroke('#CCCCCC');
-      yTable += 15;
-
-      // --- Totals Section ---
-      const totalX = 350;
-      doc.fontSize(10)
-         .font('Helvetica-Bold')
-         .text('Total Net Amount:', totalX, yTable)
-         .font('Helvetica')
-         .text(`₹${(order.itemsPrice || 0).toFixed(2)}`, 500, yTable, { align: 'right' });
-
-      yTable += 15;
-      doc.font('Helvetica-Bold')
-         .text('Tax Amount:', totalX, yTable)
-         .font('Helvetica')
-         .text(`₹${(order.taxPrice || 0).toFixed(2)}`, 500, yTable, { align: 'right' });
-
-      yTable += 15;
-      doc.font('Helvetica-Bold')
-         .text('Shipping:', totalX, yTable)
-         .font('Helvetica')
-         .text(`₹${(order.shippingPrice || 0).toFixed(2)}`, 500, yTable, { align: 'right' });
-
-      if (order.discount > 0) {
-         yTable += 15;
-         doc.font('Helvetica-Bold')
-            .text('Discount:', totalX, yTable)
-            .font('Helvetica')
-            .text(`-₹${(order.discount || 0).toFixed(2)}`, 500, yTable, { align: 'right' });
+      // --- PAID STAMP ---
+      if (order.isPaid) {
+         doc.save();
+         doc.rotate(-10, { origin: [250, 180] });
+         doc.fontSize(30).font('Helvetica-Bold').fillColor('#27ae60').opacity(0.2)
+            .text('PAID', 220, 160);
+         doc.restore();
       }
 
+      // --- ORDER ITEMS TABLE ---
+      let yTable = Math.max(currentY + 30, 260);
+
+      // Header
+      const col1 = 50;  // Item
+      const col2 = 280; // Price
+      const col3 = 350; // Qty
+      const col4 = 400; // Total (Net)
+
+      doc.rect(50, yTable, 500, 25).fill(tableHeaderBg);
+      doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(10);
+      doc.text('ITEM', col1 + 10, yTable + 8);
+      doc.text('PRICE', col2, yTable + 8, { width: 60, align: 'right' });
+      doc.text('QTY', col3, yTable + 8, { width: 40, align: 'center' });
+      doc.text('TOTAL', col4 + 40, yTable + 8, { width: 100, align: 'right' }); // Adjusted align
+
+      yTable += 25;
+      doc.moveTo(50, yTable).lineTo(550, yTable).strokeColor('#e0e0e0').stroke();
+
+      // Items
+      doc.font('Helvetica').fontSize(10).fillColor('#000000');
+
+      (order.orderItems || []).forEach((item, i) => {
+         yTable += 10;
+
+         const name = item.name;
+         const price = formatCurrency(item.price);
+         const qty = item.quantity;
+         const total = formatCurrency(item.price * item.quantity);
+
+         // Item Name (can wrap)
+         doc.text(name, col1 + 10, yTable, { width: 220 });
+         const h = doc.heightOfString(name, { width: 220 });
+
+         // Other columns
+         doc.text(price, col2, yTable, { width: 60, align: 'right' });
+         doc.text(qty.toString(), col3, yTable, { width: 40, align: 'center' });
+         doc.text(total, col4 + 40, yTable, { width: 100, align: 'right' });
+
+         yTable += h + 10;
+         doc.moveTo(50, yTable).lineTo(550, yTable).strokeColor('#f0f0f0').stroke();
+      });
+
+      // --- TOTALS ---
       yTable += 20;
-      doc.rect(350, yTable - 5, 200, 25).fill('#F3F3F3');
-      doc.fillColor('#000000')
-         .fontSize(12)
-         .font('Helvetica-Bold')
-         .text('Order Total:', 360, yTable)
-         .text(`₹${(order.totalPrice || 0).toFixed(2)}`, 500, yTable, { align: 'right' });
+      const rightColX = 350;
+      const valColX = 450;
+      const colWidth = 100;
 
-      // --- Footer ---
-      const bottomY = 750;
-      doc.fontSize(8)
-         .font('Helvetica')
-         .fillColor('#666666')
-         .text('Whether tax is payable under reverse charge - No', 50, bottomY)
-         .text('Thank you for shopping on Easy Shop!', 50, bottomY + 12)
-         .text('This is a computer-generated document and does not require signature.', 50, bottomY + 24);
+      // Subtotals (Items Price)
+      doc.font('Helvetica').fontSize(10).fillColor('#000000');
 
-      // Finalize PDF
+      // Helper for totals row
+      const addTotalRow = (label, value) => {
+         doc.text(label, rightColX, yTable, { width: 100, align: 'right' });
+         doc.text(value, valColX, yTable, { width: colWidth, align: 'right' });
+         yTable += 15;
+      };
+
+      addTotalRow('Subtotal:', formatCurrency(order.itemsPrice || 0));
+      addTotalRow('Tax (18%):', formatCurrency(order.taxPrice || 0));
+      addTotalRow('Shipping:', formatCurrency(order.shippingPrice || 0));
+
+      if (order.discount > 0) {
+         doc.fillColor('#e74c3c');
+         addTotalRow('Discount:', `-${formatCurrency(order.discount)}`);
+         doc.fillColor('#000000');
+      }
+
+      yTable += 5;
+      // Grand Total
+      doc.rect(rightColX, yTable - 5, 200, 30).fill('#f8f9fa');
+      doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(12);
+
+      doc.text('Grand Total:', rightColX + 10, yTable + 5);
+      doc.text(formatCurrency(order.totalPrice || 0), valColX, yTable + 5, { width: colWidth, align: 'right' });
+
+      // --- FOOTER ---
+      const bottomY = 730;
+      doc.fontSize(9).font('Helvetica').fillColor(secondaryColor);
+      doc.text('Thank you for your business!', 50, bottomY, { align: 'center' });
+      doc.text('For questions, contact support@easyshop.com', 50, bottomY + 15, { align: 'center' });
+
       doc.end();
 
    } catch (error) {
