@@ -93,6 +93,26 @@ const orderSchema = new mongoose.Schema({
   cancelledAt: Date,
   cancelReason: String,
   trackingNumber: String,
+  returnRequest: {
+    requested: { type: Boolean, default: false },
+    reason: { type: String },
+    requestedAt: { type: Date },
+    status: {
+      type: String,
+      enum: ['Requested', 'Approved', 'Rejected', 'Completed'],
+      default: 'Requested',
+    },
+  },
+  replaceRequest: {
+    requested: { type: Boolean, default: false },
+    reason: { type: String },
+    requestedAt: { type: Date },
+    status: {
+      type: String,
+      enum: ['Requested', 'Approved', 'Rejected', 'Completed'],
+      default: 'Requested',
+    },
+  },
 }, {
   timestamps: true,
 });

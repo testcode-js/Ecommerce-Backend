@@ -143,6 +143,84 @@ const cancelOrder = async (req, res) => {
   }
 };
 
+// @desc    Request return (User)
+// @route   PUT /api/orders/:id/return
+// @access  Private
+const requestReturn = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    if (order.status !== 'Delivered' && !order.isDelivered) {
+      return res.status(400).json({ message: 'Return is allowed only after the order is delivered' });
+    }
+
+    if (order.returnRequest?.requested) {
+      return res.status(400).json({ message: 'Return already requested for this order' });
+    }
+
+    const reason = req.body?.reason || 'Return requested by user';
+
+    order.returnRequest = {
+      requested: true,
+      reason,
+      requestedAt: Date.now(),
+      status: 'Requested',
+    };
+
+    await order.save();
+    res.json({ message: 'Return request submitted successfully', order });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Request replacement (User)
+// @route   PUT /api/orders/:id/replace
+// @access  Private
+const requestReplace = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    if (order.status !== 'Delivered' && !order.isDelivered) {
+      return res.status(400).json({ message: 'Replacement is allowed only after the order is delivered' });
+    }
+
+    if (order.replaceRequest?.requested) {
+      return res.status(400).json({ message: 'Replacement already requested for this order' });
+    }
+
+    const reason = req.body?.reason || 'Replacement requested by user';
+
+    order.replaceRequest = {
+      requested: true,
+      reason,
+      requestedAt: Date.now(),
+      status: 'Requested',
+    };
+
+    await order.save();
+    res.json({ message: 'Replacement request submitted successfully', order });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Get all orders (Admin)
 // @route   GET /api/orders
 // @access  Private/Admin
@@ -280,6 +358,8 @@ module.exports = {
   getMyOrders,
   getOrderById,
   cancelOrder,
+  requestReturn,
+  requestReplace,
   getAllOrders,
   updateOrderStatus,
   markOrderPaid,
